@@ -1,0 +1,8 @@
+pandas>=2.2,<3
+numpy>=1.26,<3
+scipy>=1.12,<2
+geopandas>=1.0,<2
+folium>=0.19,<1
+pyarrow>=17,<25
+deltalake>=1,<2
+ipywidgets>=8,<9

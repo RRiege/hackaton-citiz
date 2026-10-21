@@ -1,0 +1,6 @@
+pandas>=2.2,<3
+numpy>=1.26,<3
+scipy>=1.12,<2
+pyproj>=3.6,<4
+folium>=0.19,<1
+ipywidgets>=8,<9

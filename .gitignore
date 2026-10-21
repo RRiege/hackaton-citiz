@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+tmp/
+notebook-*.png
+.venv/
+
+# Configuration locale et identifiants de connexion
+.env
+.env.*
+!.env.example
+
+# Caches, sorties et donnees volumineuses : conserves dans OneLake
+.ipynb_checkpoints/
+.pytest_cache/
+*.log
+/output/
+/raw/
+/cells/
+/scenarios/
+/diagnostics/
+/data/bronze/
+/data/silver/
+/data/gold/
+
+# Captures de verification locales
+/citiz-*.png
