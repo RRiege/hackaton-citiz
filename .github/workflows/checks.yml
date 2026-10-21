@@ -1,0 +1,20 @@
+name: Verification Python
+
+on: [push, pull_request]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-france.txt
+      - run: python -m pip install -r requirements-france.txt
+      - run: python -m unittest discover -s tests -v
+      - name: Verifier que le notebook correspond aux sources
+        run: |
+          python scripts/build_france_notebook.py
+          git diff --exit-code -- notebooks/citiz_france.ipynb
