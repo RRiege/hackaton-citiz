@@ -30,7 +30,7 @@ Sans budget, coûts, horizon et références, le besoin reste calculable mais la
 
 Le score Or utilise la cible permis sans véhicule hors Citiz et sa part éloignée des arrêts publiés : éloignement nul à 400 m ou moins, maximal à 800 m ou plus, progression linéaire entre les deux. Ce proxy ne mesure ni fréquence ni amplitude horaire. Les composantes population/cible sont atténuées par cet éloignement ; le social et l'âge aussi, et par le volume de cible. Une pénalité ajustable de proximité des TC (35 points maximum par défaut) s'applique avant la pénalité financière éventuelle. Les poids et ancres sont des paramètres heuristiques explicites. Paris n'est pas exclue par son nom ; toutes les communes utilisent la même règle, sans bonus rural.
 
-Les points des territoires suivent des seuils fixes de score : bleu sous 20, jaune de 20 à moins de 40, orange de 40 à moins de 60, rouge à partir de 60. Le gris indique des données insuffisantes. Un contour vert signale une sélection sous budget documenté. La carte affiche les centres des 250 premiers scores strictement positifs, et la chaleur de la cible éloignée des TC hors Citiz. Ces points ne sont pas des emplacements de station validés.
+Les points des territoires suivent des seuils fixes de score : bleu sous 20, ambre de 20 à moins de 40, orange de 40 à moins de 60, orange fonce à partir de 60. Un rond gris creux indique des données insuffisantes. Un contour vert signale une sélection sous budget documenté. La carte affiche les centres des 250 premiers scores calculables, zero inclus, et la chaleur de la cible éloignée des TC hors Citiz. Ces points ne sont pas des emplacements de station validés.
 
 ## Enquetes et metriques d'usage
 
