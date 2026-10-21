@@ -25,8 +25,11 @@ except ImportError:
     pass
 
 
-PRIORITY_COLORS=[(20,'#2878a5','Faible · 0 a <20'),(40,'#d7aa28','Moderee · 20 a <40'),
-                 (60,'#e07732','Elevee · 40 a <60'),(101,'#b52b42','Tres elevee · 60 a 100')]
+PRIORITY_COLORS=[(20,'#2e8eb7','Faible · 0 a <20'),(40,'#e7b85c','Moderee · 20 a <40'),
+                 (60,'#ff9148','Elevee · 40 a <60'),(101,'#b95518','Tres elevee · 60 a 100')]
+CONCENTRATION_COLORS=['#2e8eb7','#85c8d6','#f6aaa5','#f15f63']
+COVERAGE_COLORS=['#c2d4dc','#85bac8','#438fa4','#185b76']
+EVIDENCE_COLOR='#7255a3'
 
 
 def priority_color(score):
@@ -42,7 +45,12 @@ MAP_THEMES={
     'evidence':('Solidite des donnees','Violet : estimations et proxys a valider. Gris : donnees insuffisantes. Aucun indicateur de precision statistique invente.')}
 
 
-HEAT_GRADIENT={0.0:'#245db5',.25:'#22a7c7',.5:'#f0d447',.75:'#ed8537',1.0:'#bb2345'}
+HEAT_GRADIENT={0.0:'#2e8eb7',.25:'#70c3d5',.45:'#c6e0e5',.65:'#f6aaa5',.85:'#f77879',1.0:'#f15f63'}
+
+
+def heat_key():
+    return ('<div class="cb-heat-key"><span>Concentration relative</span>'
+            '<i></i><span>Faible</span><span>Forte</span></div>')
 
 
 def heat_intensities(weights):
@@ -52,17 +60,18 @@ def heat_intensities(weights):
     result=np.zeros(len(values),dtype=float)
     if positive.any():
         logged=np.log1p(values[positive])
-        result[positive]=np.minimum(logged/max(float(np.quantile(logged,.99)),1e-12),1)
+        # Gamma visuel : separe davantage les foyers sans changer les poids du modele.
+        result[positive]=np.minimum(logged/max(float(np.quantile(logged,.99)),1e-12),1)**1.35
     return result
 
 
 def add_known_stations(m,stations,show=True):
     import folium
     from folium.plugins import FastMarkerCluster
-    layer=folium.FeatureGroup(name='Stations Citiz connues (bleu)',show=show).add_to(m)
+    layer=folium.FeatureGroup(name='Stations Citiz connues (carres C)',show=show).add_to(m)
     FastMarkerCluster([[float(r.latitude),float(r.longitude),html.escape(str(r.name))] for r in stations.itertuples()],control=False,
-        icon_create_function="function(c){return L.divIcon({html:'<div style=\"background:#2367a2;color:white;border:2px solid white;border-radius:50%;width:28px;height:28px;line-height:28px;text-align:center\">'+c.getChildCount()+'</div>',className:'citiz-existing-cluster',iconSize:[32,32]});}",
-        callback="function(row){return L.marker([row[0],row[1]],{icon:L.divIcon({html:'<span style=\"background:#2367a2;color:white;border:2px solid white;border-radius:4px;padding:2px 4px;font:bold 12px Arial\">C</span>',className:'citiz-existing',iconSize:[22,22]})}).bindPopup('Station Citiz connue<br>'+row[2]);}").add_to(layer)
+        icon_create_function="function(c){return L.divIcon({html:'<div class=\"citiz-station-badge\"><b>C</b><span>'+c.getChildCount()+'</span></div>',className:'citiz-existing-cluster',iconSize:[48,28]});}",
+        callback="function(row){return L.marker([row[0],row[1]],{icon:L.divIcon({html:'<div class=\"citiz-station-badge citiz-station-single\"><b>C</b></div>',className:'citiz-existing',iconSize:[26,26]})}).bindPopup('Station Citiz connue<br>'+row[2]);}").add_to(layer)
     return layer
 
 
@@ -120,6 +129,11 @@ def _map_travel_controls(m):
     .leaflet-container{font:12px "Segoe UI",Arial,sans-serif;background:#edf1f2}
     .leaflet-control-layers,.leaflet-bar{border:1px solid #dce4e6!important;border-radius:7px!important;box-shadow:0 2px 8px #183f4812!important}
     .leaflet-popup-content{font:12px "Segoe UI",Arial,sans-serif;line-height:1.65}
+    .citiz-point{cursor:pointer;filter:drop-shadow(0 1px 2px #123c5540);transition:stroke .15s,stroke-width .15s,fill-opacity .15s}
+    .citiz-point:hover{stroke:#123c55;stroke-width:3;fill-opacity:1}
+    .citiz-station-badge{display:flex;align-items:center;justify-content:center;gap:5px;min-width:26px;height:26px;background:#123c55;color:white;border:2px solid white;border-radius:7px;box-shadow:0 2px 5px #123c5538;font:700 11px "Segoe UI",Arial}
+    .citiz-station-badge b{font-size:13px}.citiz-station-badge span{border-left:1px solid #ffffff70;padding-left:5px}
+    .citiz-station-single{width:26px}
     </style>'''))
     m.get_root().script.add_child(folium.Element(f"document.getElementById('{uid}').appendChild(document.getElementById('{uid}_legend'));"))
 
@@ -129,12 +143,12 @@ def _indicator_map(france,ranked,cells,theme):
     from folium.plugins import HeatMap,FastMarkerCluster,Fullscreen
     data=thematic_values(ranked,cells,theme).dropna(subset=['latitude','longitude'])
     title,description=MAP_THEMES[theme]
-    m=folium.Map(location=[46.7,2.3],zoom_start=5,zoom_snap=.1,tiles='OpenStreetMap',height=540,control_scale=True,prefer_canvas=True)
+    m=folium.Map(location=[46.7,2.3],zoom_start=5,zoom_snap=.1,tiles='OpenStreetMap',height=540,control_scale=True,prefer_canvas=False)
     m.get_root().height='540px'; Fullscreen(position='topleft').add_to(m)
     folium.map.CustomPane('priority_points',z_index=625,pointer_events=True).add_to(m)
     valid=data.loc[data.map_value.notna()].copy()
     if theme=='target':
-        colors=['#d4c5ed','#b09bd8','#8363b6','#563487']
+        colors=CONCENTRATION_COLORS
         bounds=[100,500,2000,np.inf] if cells is None else [1,5,20,np.inf]
         labels=['<100','100 a <500','500 a <2000','2000 et plus'] if cells is None else ['<1','1 a <5','5 a <20','20 et plus']
         unit='personnes estimees'
@@ -142,12 +156,12 @@ def _indicator_map(france,ranked,cells,theme):
         weight=valid.map_heat_weight.clip(lower=0)
         intensity=heat_intensities(weight)
         HeatMap([[float(a),float(b),float(w)] for a,b,w in zip(valid.latitude,valid.longitude,intensity) if w>0],
-                radius=16,blur=12,min_opacity=.12,max_zoom=5 if cells is None else 9,gradient=HEAT_GRADIENT).add_to(heat)
+                radius=18,blur=10,min_opacity=.03,max_zoom=5 if cells is None else 9,gradient=HEAT_GRADIENT).add_to(heat)
     elif theme=='transit':
-        colors=['#2878a5','#e3c35b','#ed9046','#b52b42']; bounds=[25,50,75,np.inf]
+        colors=CONCENTRATION_COLORS; bounds=[25,50,75,np.inf]
         labels=['0 a <25 %','25 a <50 %','50 a <75 %','75 a 100 %']; unit='% de population a plus de 400 m d un arret publie'
     else:
-        colors=['#edb46d','#b6cdb0','#60a5a0','#087f70']; bounds=[25,50,75,np.inf]
+        colors=COVERAGE_COLORS; bounds=[25,50,75,np.inf]
         labels=['0 a <25 %','25 a <50 %','50 a <75 %','75 a 100 %']; unit='% de population proche d une station connue' if cells is None else '% : carreau proche d une station connue'
     points=folium.FeatureGroup(name=title,show=True).add_to(m)
     # Volumes pour rendre les grandes cibles visibles, jamais un bonus rural.
@@ -160,12 +174,13 @@ def _indicator_map(france,ranked,cells,theme):
         value=f'{r.map_value:,.0f}' if theme=='target' else f'{r.map_value:.1f}'
         popup=(f'<b>{html.escape(name)}</b><br>{html.escape(identifier)}<br><b>{value} {html.escape(unit)}</b><br>'
                f'{html.escape(description)}<br>Indicateur descriptif ; aucun changement des poids ou du score.')
-        marker=folium.CircleMarker([r.latitude,r.longitude],radius=5,color=color,fill=True,fill_color=color,
-                                   fill_opacity=.85,weight=1,tooltip=f'{name} · {value}',popup=folium.Popup(popup,max_width=360))
+        level=next(i for i,b in enumerate(bounds) if r.map_value<b)
+        marker=folium.CircleMarker([r.latitude,r.longitude],radius=5+level,color='white',fill=True,fill_color=color,
+                                   fill_opacity=.95,weight=1.7,class_name='citiz-point',tooltip=f'{name} · {value}',popup=folium.Popup(popup,max_width=360))
         marker.options['pane']='priority_points'; marker.add_to(points)
     missing=folium.FeatureGroup(name='Indicateur manquant - pas zero',show=True).add_to(m)
     for r in data.loc[data.map_value.isna()].head(600).itertuples():
-        folium.CircleMarker([r.latitude,r.longitude],radius=3,color='#77838c',fill=True,
+        folium.CircleMarker([r.latitude,r.longitude],radius=4,color='#77838c',fill=False,weight=1.5,dash_array='2 2',
                             tooltip=f"{getattr(r,'commune',getattr(r,'commune_code','Carreau'))} : indicateur manquant").add_to(missing)
     stations=france['stations']
     if len(data) and (cells is not None or len(ranked)<5000):
@@ -174,7 +189,7 @@ def _indicator_map(france,ranked,cells,theme):
     add_known_stations(m,stations,show=theme=='citiz')
     folium.LayerControl(collapsed=True).add_to(m)
     swatches=''.join(f'<div><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:{c};margin-right:7px"></span>{label}</div>' for c,label in zip(colors,labels))
-    foot=('Chaleur bleu → jaune → rouge : concentration relative, echelle log ; accumulation des voisins. Points violets : volumes estimes. ' if theme=='target' else '')
+    foot=('Chaleur bleu → corail : concentration relative, echelle log et gamma visuel ; accumulation des voisins. Points : volumes estimes. ' if theme=='target' else '')
     foot+=('Points : 600 plus grandes cibles estimees du perimetre. ' if theme=='target' else 'Points : 600 communes ou carreaux les plus peuples du perimetre. ')
     foot+='Couleur selon l indicateur ; filtrer pour explorer les autres communes. Gris : manquant.'
     m.get_root().html.add_child(folium.Element(f'<div id="{m.get_name()}_legend" style="position:absolute;bottom:76px;left:14px;z-index:999;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 8px #0003;font:11px Arial;line-height:1.6;max-width:230px"><details><summary style="cursor:pointer"><b>Legende · {html.escape(title)}</b></summary>{html.escape(unit)}{swatches}<div style="font-size:11px;color:#52606b">{foot}</div></details></div>'))
@@ -190,7 +205,7 @@ def france_map(france, ranked, selected, cells=None, evidence=False,theme='prior
     import folium
     from folium.plugins import HeatMap, FastMarkerCluster, Fullscreen
     m=folium.Map(location=[46.7,2.3],zoom_start=5,zoom_snap=.1,tiles='OpenStreetMap',height=540,
-                 control_scale=True,prefer_canvas=True)
+                 control_scale=True,prefer_canvas=False)
     m.get_root().height='540px'
     Fullscreen(position='topleft').add_to(m)
     # Les marqueurs de score doivent rester au-dessus du canvas de chaleur.
@@ -208,7 +223,7 @@ def france_map(france, ranked, selected, cells=None, evidence=False,theme='prior
         weight=values[target]*values.transit_gap_proxy*(~values.citiz_covered.fillna(True).astype(bool))
     intensity=heat_intensities(weight)
     HeatMap([[float(a),float(b),float(w)] for a,b,w in zip(values.latitude,values.longitude,intensity) if w>0],
-            radius=16 if national else 14,blur=12,min_opacity=.12,max_zoom=5 if national else 9,
+            radius=18 if national else 16,blur=10,min_opacity=.03,max_zoom=5 if national else 9,
             gradient=HEAT_GRADIENT).add_to(heat)
     points=folium.FeatureGroup(name='Territoires a etudier' if national else 'Emplacements proposes - parking a verifier').add_to(m)
     chosen_ids=set(selected.commune_code if national else selected.candidate_id)
@@ -241,10 +256,11 @@ def france_map(france, ranked, selected, cells=None, evidence=False,theme='prior
                f"<br>Solidite : {html.escape(str(getattr(r,'evidence_status','modele_non_valide')))}"
                f"<br>Part de carreaux imputes : {getattr(r,'imputed_cell_share',np.nan):.1%} (pas part de population)"
                "<br>Usage occasionnel, horaires TC et parking : a documenter. Permis : estimation d'enquete, pas registre local actuel.")
-        fill_color='#7964aa' if evidence else priority_color(r.priority_score)
-        marker=folium.CircleMarker([r.latitude,r.longitude],radius=9 if chosen else 6,
-                            color='#087f70' if chosen else fill_color,weight=3 if chosen else 2,
-                            fill=True,fill_color=fill_color,fill_opacity=.9,
+        fill_color=EVIDENCE_COLOR if evidence else priority_color(r.priority_score)
+        level=next(i for i,(upper,_,_) in enumerate(PRIORITY_COLORS) if r.priority_score<upper)
+        marker=folium.CircleMarker([r.latitude,r.longitude],radius=10 if chosen else 6 if evidence else 4.5+1.5*level,
+                            color='#087f70' if chosen else 'white',weight=3 if chosen else 1.8,
+                            fill=True,fill_color=fill_color,fill_opacity=.97,class_name='citiz-point',
                             tooltip=f'{r.commune} · {r.priority_score:.1f}',popup=folium.Popup(popup,max_width=390))
         marker.options['pane']='priority_points'
         marker.add_to(points)
@@ -257,7 +273,7 @@ def france_map(france, ranked, selected, cells=None, evidence=False,theme='prior
     if national:
         missing=folium.FeatureGroup(name='Permis ou donnees fines manquants - pas de score',show=True).add_to(m)
         for r in frame.loc[frame.priority_score.isna()].itertuples():
-            folium.CircleMarker([r.latitude,r.longitude],radius=3,color='#77838c',fill=True,
+            folium.CircleMarker([r.latitude,r.longitude],radius=4,color='#77838c',fill=False,weight=1.5,dash_array='2 2',
                                 tooltip=f'{r.commune} : donnees insuffisantes',
                                 popup=f"Commune conservee dans le perimetre. Permis : {html.escape(str(getattr(r,'license_status','non renseigne')))}. Grille : {html.escape(str(getattr(r,'grid_status','non renseignee')))}. Aucun besoin suppose nul.").add_to(missing)
     fit_study_bounds(m,cells if cells is not None else frame)
@@ -269,8 +285,8 @@ def france_map(france, ranked, selected, cells=None, evidence=False,theme='prior
         ('<b>Solidite des donnees</b><br>' if evidence else '<b>Territoires : score de priorite /100</b>')+swatches+
         '<div style="color:#77838c">Gris : donnees insuffisantes</div>'
         '<div>Contour vert : retenu sous budget</div>'
-        '<div>Carre C / groupe bleu : Citiz existant</div>'
-        '<div style="font-size:11px">Chaleur bleu → jaune → rouge : concentration relative, echelle log, accumulation des voisins ; pas le score /100.</div>'
+        '<div>Badge C bleu marine : Citiz existant</div>'
+        '<div style="font-size:11px">Chaleur bleu → corail : concentration relative du besoin, echelle log et gamma visuel, accumulation des voisins ; pas le score /100. Orange : potentiel eleve.</div>'
         '<div style="max-width:230px;font-size:11px;color:#52606b">Seuils fixes entre scenarios. Points = centres des communes ou carreaux ; top 250 scores calculables, zero inclus.</div></details></div>'))
     _map_travel_controls(m)
     return m
@@ -311,6 +327,9 @@ UI_STYLE='''<style>
 .cb-side{display:flex;flex-direction:column;gap:12px;max-height:610px;overflow:auto}.cb-side section{background:white;border:1px solid #e1e8eb;border-radius:8px;padding:13px}.cb-side h4{margin-top:2px}.cb-place{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 0;border-top:1px solid #edf1f2}.cb-place>b{font-size:20px;font-weight:600}.cb-place span{min-width:0}.cb-place small{overflow-wrap:anywhere;font-size:10px}.cb-swatches{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 6px}.cb-swatches span{font-size:10px;color:#61797e}.cb-swatches i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.cb-rule{border-left:2px solid #168487!important}.cb-rule b{display:block;margin-bottom:5px;font-size:12px}
 .cb-term{display:grid;grid-template-columns:1fr auto;gap:4px;font-size:10px;margin:9px 0}.cb-term>div{grid-column:1/-1;background:#edf2f3;height:5px;border-radius:4px}.cb-term i{display:block;height:5px;background:#218b91;border-radius:4px}.cb-footer{font-size:10px;color:#71858a;margin-top:12px}.cb facts{display:block}.cb-fact{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #eef2f3;font-size:11px}.cb-fact b{font-weight:500;text-align:right}.cb summary,.cb-report summary{cursor:pointer;font-size:11px;font-weight:600;color:#305b64;padding:4px 0}.cb details p{font-size:11px;line-height:1.65;margin:8px 0;color:#657b80}
 .cb-report{overflow-x:auto;line-height:1.65}.cb-report h3{font-size:16px;font-weight:600;margin:15px 0 10px}.cb-report h4{font-size:13px}.cb-report p,.cb-report details{color:#5e747a;font-size:12px}.cb-report table{border-collapse:collapse;width:100%;font-size:11px;border:none;background:white;margin:12px 0}.cb-report th{background:#edf3f4;color:#24484f;font-weight:600;text-align:left;position:sticky;top:0}.cb-report th,.cb-report td{padding:9px 11px;border:0;border-bottom:1px solid #e4ebee;vertical-align:top}.cb-report tr:nth-child(even){background:#f8fafb}.cb-report a{color:#087f80}
+.cb-swatches{gap:8px 14px}.cb-swatches span{color:#294650;font-size:11px}.cb-swatches i{width:12px;height:12px;vertical-align:-2px;border:1.5px solid white;box-shadow:0 0 0 1px #dce5e8}
+.cb-heat-key{display:grid;grid-template-columns:1fr 1fr;max-width:310px;margin:12px 0 7px;gap:4px;font-size:10px;color:#48616c}.cb-heat-key>span:first-child{grid-column:1/-1;font-weight:600}.cb-heat-key i{grid-column:1/-1;height:9px;border-radius:6px;background:linear-gradient(90deg,#2e8eb7 0%,#70c3d5 25%,#c6e0e5 45%,#f6aaa5 65%,#f77879 85%,#f15f63 100%)}.cb-heat-key>span:last-child{text-align:right}
+.cb-symbols{display:flex;align-items:center;flex-wrap:wrap;gap:7px 14px;margin:10px 0 5px;color:#48616c;font-size:10px}.cb-citiz-symbol{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#123c55;border-radius:5px;color:white;font-weight:700;margin-right:4px}.cb-missing-symbol{display:inline-block;width:11px;height:11px;border:1.5px dashed #77838c;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .cb-analysis-table{background:white;border:1px solid #e1e8eb;border-radius:8px;padding:12px 14px;margin:12px 0}.cb-analysis-table summary{font-size:13px!important}.cb-analysis-table summary span{font-size:10px;color:#71858a;font-weight:400;margin-left:12px}.cb-table-scroll{max-height:500px;overflow:auto}.cb-table-scroll th{position:static;white-space:normal;min-width:100px}.cb-table-scroll td{white-space:nowrap}.cb-table-scroll thead tr:first-child th{border-bottom:2px solid #cbdcde}
 @media(max-width:900px){.cb-body{grid-template-columns:1fr}.cb-side{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-height:none}.cb-cards{gap:8px}.cb-card{padding:10px}.cb-card strong{font-size:24px}}
 @media(max-width:540px){.cb-cards{grid-template-columns:1fr}.cb-side{grid-template-columns:1fr}.cb-head{align-items:flex-start}}
@@ -351,17 +370,21 @@ def dashboard_html(france,ranked,selected,m,cells,theme,scope_label,expert=False
         extras+=f'<section><h4>Qualite et couverture</h4><p>{number(len(valid))} scores calculables / {number(len(ranked))}<br>{number(ranked.priority_score.isna().sum())} scores absents</p><small>Inventaire Citiz partiel possible. Proximite TC sans horaires. Estimation locale du permis, pas registre actuel.</small></section>'
     if theme=='priority':
         swatches=''.join(f'<span><i style="background:{color}"></i>{esc(label)}</span>' for _,color,label in PRIORITY_COLORS)
-        reading='Points : score /100. Chaleur : concentration relative bleu → jaune → rouge.'
+        reading='Ronds : potentiel /100, taille graduee par priorite. Chaleur : concentration du besoin, distincte du score.'
     elif theme=='evidence':
-        swatches='<span><i style="background:#7964aa"></i>Modele a valider</span><span><i style="background:#77838c"></i>Donnees absentes</span>'
+        swatches=f'<span><i style="background:{EVIDENCE_COLOR}"></i>Modele a valider</span>'
         reading='Couleur : statut des donnees, pas une probabilite de precision.'
     elif theme=='target':
-        swatches='<span><i style="background:#b09bd8"></i>Cible estimee</span><span><i style="background:#77838c"></i>Valeur absente</span>'
-        reading='Points violets : volume estime, voir les seuils dans Legende. Chaleur : concentration relative bleu → jaune → rouge.'
+        labels=['<100','100 a <500','500 a <2000','2000 et plus'] if cells is None else ['<1','1 a <5','5 a <20','20 et plus']
+        swatches=''.join(f'<span><i style="background:{color}"></i>{label}</span>' for color,label in zip(CONCENTRATION_COLORS,labels))
+        reading='Ronds : personnes estimees avec permis sans vehicule, hors Citiz. Chaleur : concentration relative de cette cible.'
     else:
-        colors=['#2878a5','#e3c35b','#ed9046','#b52b42'] if theme=='transit' else ['#edb46d','#b6cdb0','#60a5a0','#087f70']
+        colors=CONCENTRATION_COLORS if theme=='transit' else COVERAGE_COLORS
         swatches=''.join(f'<span><i style="background:{color}"></i>{label}</span>' for color,label in zip(colors,['<25 %','25 a <50 %','50 a <75 %','75 a 100 %']))
         reading='Couleur : part de population eloignee des arrets.' if theme=='transit' else 'Couleur : part de population proche du Citiz connu.'
+    color_key=heat_key() if theme in ['priority','target'] else ''
+    symbols=('<div class="cb-symbols"><span><b class="cb-citiz-symbol">C</b>Station existante</span>'
+             '<span><i class="cb-missing-symbol"></i>Donnee manquante</span></div>')
     facts=(f'<div class="cb-fact"><span>Population etudiee</span><b>{number(metrics["population"])}</b></div>'
            '<div class="cb-fact"><span>Distance aux arrets</span><b>A vol d’oiseau</b></div>'
            '<div class="cb-fact"><span>Horaires / frequences</span><b>Non renseignes</b></div>'
@@ -374,7 +397,7 @@ def dashboard_html(france,ranked,selected,m,cells,theme,scope_label,expert=False
           f'<section><h4>Transports et donnees</h4>{facts}{sources}</section>'+
           ('<section class="cb-rule"><b>Implantation locale</b><small>Centres a 400 m ou moins des stations connues exclus. Seuil heuristique.</small></section>' if expert else ''))
     return (UI_STYLE+f'<div class="cb" data-view="{"expert" if expert else "simple"}"><div class="cb-head"><div><h3>{esc(scope_label)}</h3><small>{number(len(ranked))} {"centres candidats" if cells is not None else "communes"} · {number(availability["available"])} valeurs cartographiables</small></div></div>'
-            f'<div class="cb-cards">{cards}</div><div class="cb-body"><div class="cb-map"><div class="cb-maphead"><h4>{esc(title)}</h4><p>{esc(description)}</p><div class="cb-swatches">{swatches}</div><small>{reading}</small></div>{m._repr_html_()}</div><aside class="cb-side">{side}</aside></div>'
+            f'<div class="cb-cards">{cards}</div><div class="cb-body"><div class="cb-map"><div class="cb-maphead"><h4>{esc(title)}</h4><p>{esc(description)}</p><div class="cb-swatches">{swatches}</div>{color_key}{symbols}<small>{reading}</small></div>{m._repr_html_()}</div><aside class="cb-side">{side}</aside></div>'
             '<div class="cb-footer">Parts calculees sur la population renseignee. Cible permis estimee ; pas une prevision de clients. C : station Citiz connue.</div></div>')
 
 
