@@ -49,7 +49,7 @@ class ThematicMaps(unittest.TestCase):
         data=france_rank(sample())
         france={'stations':pd.DataFrame(dict(latitude=[46.],longitude=[3.],name=['Test']))}
         m=france_map(france,data,data.iloc[:0])
-        existing=next(c for c in m._children.values() if getattr(c,'layer_name','')=='Stations Citiz connues (bleu)')
+        existing=next(c for c in m._children.values() if getattr(c,'layer_name','')=='Stations Citiz connues (carres C)')
         self.assertTrue(existing.show)
         heat=next(c for c in m._children.values() if getattr(c,'layer_name','')=='Chaleur des priorites (communes)')
         self.assertEqual(next(iter(heat._children.values())).options['max_zoom'],5)
