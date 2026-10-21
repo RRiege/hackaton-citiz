@@ -53,6 +53,12 @@ def heat_key():
             '<i></i><span>Faible</span><span>Forte</span></div>')
 
 
+def target_scale(local=False):
+    # Classes de lecture fixes : les memes effectifs gardent la meme couleur apres filtrage.
+    if local: return [1,5,20,np.inf],['<1','1 a <5','5 a <20','20 et plus']
+    return [1000,5000,20000,np.inf],['<1 000','1 000 a <5 000','5 000 a <20 000','20 000 et plus']
+
+
 def heat_intensities(weights):
     """Echelle log relative au perimetre ; zeros et manquants sans chaleur."""
     values=np.asarray(weights,dtype=float)
@@ -149,8 +155,7 @@ def _indicator_map(france,ranked,cells,theme):
     valid=data.loc[data.map_value.notna()].copy()
     if theme=='target':
         colors=CONCENTRATION_COLORS
-        bounds=[100,500,2000,np.inf] if cells is None else [1,5,20,np.inf]
-        labels=['<100','100 a <500','500 a <2000','2000 et plus'] if cells is None else ['<1','1 a <5','5 a <20','20 et plus']
+        bounds,labels=target_scale(cells is not None)
         unit='personnes estimees'
         heat=folium.FeatureGroup(name='Concentration de la cible estimee',show=True).add_to(m)
         weight=valid.map_heat_weight.clip(lower=0)
@@ -189,7 +194,7 @@ def _indicator_map(france,ranked,cells,theme):
     add_known_stations(m,stations,show=theme=='citiz')
     folium.LayerControl(collapsed=True).add_to(m)
     swatches=''.join(f'<div><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:{c};margin-right:7px"></span>{label}</div>' for c,label in zip(colors,labels))
-    foot=('Chaleur bleu → corail : concentration relative, echelle log et gamma visuel ; accumulation des voisins. Points : volumes estimes. ' if theme=='target' else '')
+    foot=('Chaleur bleu → corail : concentration relative. Points : volumes estimes. ' if theme=='target' else '')
     foot+=('Points : 600 plus grandes cibles estimees du perimetre. ' if theme=='target' else 'Points : 600 communes ou carreaux les plus peuples du perimetre. ')
     foot+='Couleur selon l indicateur ; filtrer pour explorer les autres communes. Gris : manquant.'
     m.get_root().html.add_child(folium.Element(f'<div id="{m.get_name()}_legend" style="position:absolute;bottom:76px;left:14px;z-index:999;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 8px #0003;font:11px Arial;line-height:1.6;max-width:230px"><details><summary style="cursor:pointer"><b>Legende · {html.escape(title)}</b></summary>{html.escape(unit)}{swatches}<div style="font-size:11px;color:#52606b">{foot}</div></details></div>'))
@@ -286,7 +291,7 @@ def france_map(france, ranked, selected, cells=None, evidence=False,theme='prior
         '<div style="color:#77838c">Gris : donnees insuffisantes</div>'
         '<div>Contour vert : retenu sous budget</div>'
         '<div>Badge C bleu marine : Citiz existant</div>'
-        '<div style="font-size:11px">Chaleur bleu → corail : concentration relative du besoin, echelle log et gamma visuel, accumulation des voisins ; pas le score /100. Orange : potentiel eleve.</div>'
+        '<div style="font-size:11px">Chaleur bleu → corail : concentration relative du besoin ; pas le score /100. Orange : potentiel eleve.</div>'
         '<div style="max-width:230px;font-size:11px;color:#52606b">Seuils fixes entre scenarios. Points = centres des communes ou carreaux ; top 250 scores calculables, zero inclus.</div></details></div>'))
     _map_travel_controls(m)
     return m
@@ -375,7 +380,7 @@ def dashboard_html(france,ranked,selected,m,cells,theme,scope_label,expert=False
         swatches=f'<span><i style="background:{EVIDENCE_COLOR}"></i>Modele a valider</span>'
         reading='Couleur : statut des donnees, pas une probabilite de precision.'
     elif theme=='target':
-        labels=['<100','100 a <500','500 a <2000','2000 et plus'] if cells is None else ['<1','1 a <5','5 a <20','20 et plus']
+        _,labels=target_scale(cells is not None)
         swatches=''.join(f'<span><i style="background:{color}"></i>{label}</span>' for color,label in zip(CONCENTRATION_COLORS,labels))
         reading='Ronds : personnes estimees avec permis sans vehicule, hors Citiz. Chaleur : concentration relative de cette cible.'
     else:
