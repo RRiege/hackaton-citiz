@@ -83,6 +83,42 @@ def build_analysis_tables(france,ranked,cells,metrics_fn):
     return tables
 
 
+def _analysis_table_html(frame):
+    """Explicit column geometry shared by headers and cells; exports stay unchanged."""
+    columns=[tuple(map(str,c)) if isinstance(frame.columns,pd.MultiIndex) else (str(c),) for c in frame.columns]
+    numeric=[pd.api.types.is_numeric_dtype(frame.iloc[:,i]) and not pd.api.types.is_bool_dtype(frame.iloc[:,i]) for i in range(len(columns))]
+    integers=[pd.api.types.is_integer_dtype(frame.iloc[:,i]) for i in range(len(columns))]
+    widths=[]
+    for i,column in enumerate(columns):
+        label=column[-1].lower()
+        widths.append(110 if label.startswith('code') else 190 if label in ['commune','departement','nom'] else 145 if numeric[i] else 260)
+    result=f'<table class="cb-data-table" style="width:{sum(widths)}px"><colgroup>'
+    result+=''.join(f'<col style="width:{width}px">' for width in widths)+'</colgroup><thead>'
+    for level in range(frame.columns.nlevels):
+        result+='<tr>'
+        i=0
+        while i<len(columns):
+            end=i+1
+            if level<frame.columns.nlevels-1:
+                while end<len(columns) and columns[end][:level+1]==columns[i][:level+1]: end+=1
+            leaf=level==frame.columns.nlevels-1
+            alignment='cb-number' if leaf and numeric[i] else 'cb-text'
+            scope='col' if leaf else 'colgroup'
+            result+=f'<th scope="{scope}" colspan="{end-i}" class="{alignment}">{html.escape(columns[i][level])}</th>'
+            i=end
+        result+='</tr>'
+    result+='</thead><tbody>'
+    for row in frame.itertuples(index=False,name=None):
+        result+='<tr>'
+        for i,value in enumerate(row):
+            if pd.isna(value): text='Non renseigne'
+            elif numeric[i]: text=(f'{value:,}' if integers[i] else f'{value:,.2f}').replace(',',' ')
+            else: text=str(value)
+            result+=f'<td class="{"cb-number" if numeric[i] else "cb-text"}">{html.escape(text)}</td>'
+        result+='</tr>'
+    return result+'</tbody></table>'
+
+
 def analysis_report(tables,local=False):
     descriptions={
         'classement':('Classement detaille','Tri par score decroissant. '+('Les rayons se recouvrent : leurs gains ne s’additionnent pas.' if local else 'Les volumes portent sur les habitants hors couverture Citiz connue.')),
@@ -97,7 +133,7 @@ def analysis_report(tables,local=False):
         title,description=descriptions[key]
         limit=50 if key in ['classement','decomposition'] else 120
         subset=frame.head(limit)
-        table=subset.to_html(index=False,escape=True,na_rep='Non renseigne',border=0,float_format=lambda x:f'{x:,.2f}'.replace(',',' '))
+        table=_analysis_table_html(subset)
         text=f'{len(frame):,} lignes'.replace(',',' ')
         if len(frame)>limit: text+=f' · {limit} affichees · export CSV complet disponible'
         result+=(f'<details class="cb-analysis-table"{" open" if key=="classement" else ""}><summary>{html.escape(title)} <span>{text}</span></summary>'
